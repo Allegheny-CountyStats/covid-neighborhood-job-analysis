@@ -26,10 +26,8 @@ download_by_state <- function(state) {
         exdir = "data/raw-data/big")
   file.remove(str_glue("data/raw-data/big/{state}.zip"))
 }
-state_fips <- fromJSON("https://api.census.gov/data/2010/dec/sf1?get=NAME&for=state:*")
-state_fips <- state_fips[, 2][c(2:length(state_fips[, 2]))]
-dl <- state_fips %>% map(download_by_state)
-
+fips <- 42
+download_by_state(fips)
 
 #----Download LODES data-----------------------------------
 # Downloaded from the Urban Institute Data Catalog
@@ -42,9 +40,7 @@ download.file(url = "https://ui-spark-data-public.s3.amazonaws.com/lodes/summari
 download.file(url = "https://urban-data-catalog.s3.amazonaws.com/drupal-root-live/2020/03/30/rac_se03_tract.csv",
               destfile = "data/raw-data/big/rac_se03.csv")
 
-
 #----Download Unemployment data from BLS and WA------------
-
 # BLS CES Data
 download.file(url = "https://download.bls.gov/pub/time.series/ce/ce.data.0.AllCESSeries",
               destfile = "data/raw-data/big/ces_all.txt")
@@ -70,9 +66,14 @@ download.file(url = "https://esdorchardstorage.blob.core.windows.net/esdwa/Defau
 
 #----Download cbsas, counties, and states from tigris------------
 
-my_cbsas<-core_based_statistical_areas(cb = T)
-my_counties <- counties(cb = T)
-my_states <- states(cb = T) 
+my_cbsas <- core_based_statistical_areas(cb = T) %>%
+  filter(NAME == "Pittsburgh, PA")
+
+my_counties <- counties(cb = T, state = fips) %>%
+  st_intersection(my_cbsas)
+
+my_states <- states(cb = T) %>%
+  filter(STATEFP == fips)
 
 clean_and_write_sf <- function(name, filepath) {
   if(!file.exists(filepath)){

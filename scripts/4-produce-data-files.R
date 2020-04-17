@@ -61,6 +61,7 @@ if(dataset == "wa"){
 clean_lodes <- function(df){
   
   dat_temp<- df %>%  
+    mutate(cty = as.numeric(cty)) %>%
     # join data to choose 2016 data
     left_join(counties_to_get_2016, by = c("cty"="county_fips")) 
   
@@ -125,7 +126,8 @@ lodes_joined %>%
 
 # Generate job loss estimates for each industry across all tracts. 
 
-job_loss_wide = lodes_joined %>% 
+job_loss_wide <- lodes_joined %>% 
+  mutate(trct = as.numeric(trct)) %>%
   # join lodes total employment data to % change in 
   # employment estimates from WA or BLS
   left_join( job_loss_estimates, 
@@ -162,8 +164,8 @@ job_loss_wide %>%
   filter(any_na)
 
 # Discard problematic tract 
-job_loss_wide = job_loss_wide %>%
-                filter(trct != "12057980100")
+job_loss_wide <- job_loss_wide %>%
+                filter(trct != "12057980100", !is.na(county_name))
 
 
 
@@ -176,24 +178,27 @@ my_tracts <- st_read("data/processed-data/tracts.geojson") %>%
   # filter out tracts in Puerto Rico
   filter(!startsWith(GEOID, "72")) %>% 
   # filter out tracts that are only water
-  filter(substr(GEOID, 6, 7) != "99")
+  filter(substr(GEOID, 6, 7) != "99") %>%
+  mutate(GEOID = as.numeric(GEOID))
 
 # join data to tract spatial information
-job_loss_wide_sf <- left_join(my_tracts %>% select(GEOID), 
-                              job_loss_wide, 
-                              by = c("GEOID" = "trct")) 
+job_loss_wide_sf <- my_tracts %>% 
+  select(GEOID) %>%
+  left_join(job_loss_wide, 
+            by = c("GEOID" = "trct")) 
 
 # The 2018 Census tract file has one tract not found in the LODES data
 # This is tract 12086981000 near Miami Beach in Florida & has a population 
 # of 62. For now we exlcude this tract from the analysis
 job_loss_wide_sf <- job_loss_wide_sf %>% 
-                    filter(GEOID != "12086981000")
+  filter(GEOID != "12086981000" & !is.na(county_name))
+  
 
 # Check that the tracts contianed in job_loss_wide are the same after
 # adding spatial info
-assert("job_loss_wide_sf has a different number of rows that job_loss_wide",
+checkmate::assert("job_loss_wide_sf has a different number of rows that job_loss_wide",
        nrow(job_loss_wide_sf) == nrow(job_loss_wide))
-assert("job_loss_wide_sf has differnt GEOIDS compared to job_loss_wide",
+checkmate::assert("job_loss_wide_sf has differnt GEOIDS compared to job_loss_wide",
        all.equal(job_loss_wide %>% 
          arrange(trct) %>% 
          pull(trct),
@@ -385,7 +390,7 @@ county_sums <- job_loss_wide_sf %>%
   # add max industry job loss for whole county
   add_sum_bins(county_fips) %>% 
   # add max tract-industry job loss for whole county
-  left_join(county_bins, by = "county_fips") %>%
+  left_join(mutate(county_bins, county_fips = as.character(county_fips)) , by = "county_fips") %>%
   # join to county geographies
   left_join(my_counties %>% 
               mutate(county_fips = as.character(county_fips)), 
@@ -393,7 +398,29 @@ county_sums <- job_loss_wide_sf %>%
   # cast back to sf object
   st_sf() %>% 
   # reorder columns
-  select(county_fips, county_name, state_name, everything()) 
+  select(county_fips, county_name, state_name, everything()) %>% 
+  rename(`Total Job Loss Index` = "X000",
+         `Agriculture, Forestry, Fishing, and Hunting` = "X01",
+         `Mining, Quarrying, and Oil and Gas Extractions` = "X02",
+         `Utilities` = "X03",
+         `Construction` = "X04",
+         `Manufacturing` = "X05",
+         `Wholesale Trade` = "X06",
+         `Retail Trade` = "X07",
+         `Transportation and Warehousing` = "X08",
+         `Information` = "X09",
+         `Finance and Insurance` = "X10",
+         `Real Estate and Rental and Leasing` = "X11",
+         `Professional, Scientific, and Technical Services` = "X12",
+         `Management of Companies and Enterprises` = "X13",
+         `Administrative and Support and Waste Management and Remediation Services` = "X14",
+         `Educational Services` = "X15",
+         `Health Care and Social Assistance` = "X16",
+         `Arts, Entertainment, and Recreation` = "X17",
+         `Accomodation and Food Services` = "X18",
+         `Other Services` =  "X19",
+         `Public Administration` = "X20"
+  )
  
 
 # Get max value of any 1 tracts jobs loss in any industry for 
@@ -429,7 +456,29 @@ cbsa_sums <- job_loss_wide_sf %>%
   left_join(my_cbsas, by = "cbsa") %>%
   st_sf() %>% 
   # reorder columns
-  select(cbsa, cbsa_name, everything())
+  select(cbsa, cbsa_name, everything()) %>% 
+  rename(`Total Job Loss Index` = "X000",
+         `Agriculture, Forestry, Fishing, and Hunting` = "X01",
+         `Mining, Quarrying, and Oil and Gas Extractions` = "X02",
+         `Utilities` = "X03",
+         `Construction` = "X04",
+         `Manufacturing` = "X05",
+         `Wholesale Trade` = "X06",
+         `Retail Trade` = "X07",
+         `Transportation and Warehousing` = "X08",
+         `Information` = "X09",
+         `Finance and Insurance` = "X10",
+         `Real Estate and Rental and Leasing` = "X11",
+         `Professional, Scientific, and Technical Services` = "X12",
+         `Management of Companies and Enterprises` = "X13",
+         `Administrative and Support and Waste Management and Remediation Services` = "X14",
+         `Educational Services` = "X15",
+         `Health Care and Social Assistance` = "X16",
+         `Arts, Entertainment, and Recreation` = "X17",
+         `Accomodation and Food Services` = "X18",
+         `Other Services` =  "X19",
+         `Public Administration` = "X20"
+  )
 
 
 #----Write out job loss estimates for counties/cbsa's------------------------------
@@ -460,7 +509,26 @@ us_sums <- job_loss_wide_sf %>%
   summarise_all(~sum(.)) %>% 
   mutate(GEOID = "99") %>%
   select(GEOID, everything()) %>% 
+  rename(`Total Job Loss Index` = "X000",
+         `Agriculture, Forestry, Fishing, and Hunting` = "X01",
+         `Mining, Quarrying, and Oil and Gas Extractions` = "X02",
+         `Utilities` = "X03",
+         `Construction` = "X04",
+         `Manufacturing` = "X05",
+         `Wholesale Trade` = "X06",
+         `Retail Trade` = "X07",
+         `Transportation and Warehousing` = "X08",
+         `Information` = "X09",
+         `Finance and Insurance` = "X10",
+         `Real Estate and Rental and Leasing` = "X11",
+         `Professional, Scientific, and Technical Services` = "X12",
+         `Management of Companies and Enterprises` = "X13",
+         `Administrative and Support and Waste Management and Remediation Services` = "X14",
+         `Educational Services` = "X15",
+         `Health Care and Social Assistance` = "X16",
+         `Arts, Entertainment, and Recreation` = "X17",
+         `Accomodation and Food Services` = "X18",
+         `Other Services` =  "X19",
+         `Public Administration` = "X20"
+  ) %>%
   write_csv("data/processed-data/s3_final/sum_job_loss_us.csv")
-
-
-

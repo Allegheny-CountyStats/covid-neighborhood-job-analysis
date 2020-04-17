@@ -23,7 +23,7 @@ south_dakota <- filter(my_counties %>% select(GEOID, STATEFP), STATEFP == "46")
 not_south_dakota <- filter(my_counties %>% select(GEOID, STATEFP), STATEFP!= "46")
 
 # do join to find counties around south dakota
-around_sd<- st_join( not_south_dakota, 
+around_sd <- st_join(not_south_dakota, 
                      south_dakota,
                      #We want counties outside SD that touch SD,
                      # so we use st_touches
@@ -45,7 +45,6 @@ around_sd_df = my_counties %>%
 
 # write out data to choose which tracts we need to use 2016 for
 write_csv(around_sd_df, "data/processed-data/counties_to_get_2016.csv")
-
 
 #---------
 ## potential code to use when we want to use place
@@ -142,7 +141,7 @@ tract_cbsa_ints <- my_intersections %>%
 
 
 # Check tracts are not in multiple CBSAs
-assert("tracts are in multiple CBSAs", 
+checkmate::assert("tracts are in multiple CBSAs", 
        tract_cbsa_ints %>% 
         pull(GEOID) %>% 
         unique() %>%
@@ -196,4 +195,3 @@ cbsa_to_county = trct_cty_cbsa %>%
 
 jsonlite::write_json(cbsa_to_county, 'data/processed-data/CbsaToCounty2.json')
 jsonlite::write_json(county_to_cbsa, 'data/processed-data/CountyToCbsa2.json')
-
