@@ -75,12 +75,7 @@ child care support, or cash assistance - to those who need it most.
     - `sum_job_loss_cbsa.geojson`: Estimated job losses by industry for every
       CBSA in the US
     - `sum_job_loss_us.geojson`: Estimated job losses by industry for the entire
-      United States
-
-- **`5-transfer-to-s3.R`**: After files are written out and quality checked,
-  this script transfers them to S3 in a publicly available bucket. Running this
-  is completely optional and in most cases not needed.
-  
+      United States  
 
 ## Caveats
 
